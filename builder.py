@@ -2,8 +2,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from custom_layers.flatten_layer import FlattenLayer
 from custom_layers.se_block import SEBlock
-from kflo.kflo_block import LayerWithBypass
-
 
 class ConvBuilder(nn.Module):
 
@@ -26,9 +24,8 @@ class ConvBuilder(nn.Module):
 
     def Conv2d(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, padding_mode='zeros', use_original_conv=False):
         self.cur_conv_idx += 1
-        return LayerWithBypass(nn.Conv2d, in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                               stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias,
-                               padding_mode=padding_mode)
+        return nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+                         stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias, padding_mode=padding_mode)
 
     # The running estimates are kept with a default momentum of 0.1.
     # By default, the elements of \gammaγ are sampled from \mathcal{U}(0, 1)U(0,1) and the elements of \betaβ are set to 0.
@@ -42,13 +39,13 @@ class ConvBuilder(nn.Module):
             affine = self.BN_affine
         if track_running_stats is None:
             track_running_stats = self.BN_track_running_stats
-        return LayerWithBypass(nn.BatchNorm2d, num_features=num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
+        return nn.BatchNorm2d(num_features=num_features, eps=eps, momentum=momentum, affine=affine, track_running_stats=track_running_stats)
 
     def Sequential(self, *args):
         return nn.Sequential(*args)
 
     def ReLU(self):
-        return LayerWithBypass(nn.ReLU)
+        return nn.ReLU()
 
     def Conv2dBN(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, padding_mode='zeros', use_original_conv=False):
         conv_layer = self.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
@@ -61,9 +58,9 @@ class ConvBuilder(nn.Module):
         if self.base_config is not None and self.base_config.se_reduce_scale is not None and self.base_config.se_reduce_scale > 0 \
                 and (self.base_config.se_layers is None or self.cur_conv_idx in self.base_config.se_layers):
             print('%%%%%%%%%%% USE SEBLock !')
-            assert False, 'METHOD with SEBLock not supported yet'
             se.add_module('se', SEBlock(input_channels=out_channels, internal_neurons=out_channels // self.base_config.se_reduce_scale))
         return se
+
 
     def Conv2dBNReLU(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, padding_mode='zeros', use_original_conv=False):
         conv = self.Conv2dBN(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
@@ -100,31 +97,31 @@ class ConvBuilder(nn.Module):
         return se
 
     def Linear(self, in_features, out_features, bias=True):
-        return LayerWithBypass(nn.Linear, in_features=in_features, out_features=out_features, bias=bias)
+        return nn.Linear(in_features=in_features, out_features=out_features, bias=bias)
 
     def IntermediateLinear(self, in_features, out_features, bias=True):
-        return LayerWithBypass(nn.Linear, in_features=in_features, out_features=out_features, bias=bias)
+        return nn.Linear(in_features=in_features, out_features=out_features, bias=bias)
 
     def Identity(self):
-        return LayerWithBypass(nn.Identity)
+        return nn.Identity()
 
     def ResIdentity(self, num_channels):
-        return LayerWithBypass(nn.Identity)
+        return nn.Identity()
 
     def ResNetAlignOpr(self, channels):
-        return LayerWithBypass(nn.Identity)
+        return nn.Identity()
 
     def Dropout(self, keep_prob):
-        return LayerWithBypass(nn.Dropout, p=1-keep_prob)
+        return nn.Dropout(p=1-keep_prob)
 
     def Maxpool2d(self, kernel_size, stride=None, padding=0):
-        return LayerWithBypass(nn.MaxPool2d, kernel_size=kernel_size, stride=stride, padding=padding)
+        return nn.MaxPool2d(kernel_size=kernel_size, stride=stride, padding=padding)
 
     def Avgpool2d(self, kernel_size, stride=None, padding=0):
-        return LayerWithBypass(nn.AvgPool2d, kernel_size=kernel_size, stride=stride, padding=padding)
+        return nn.AvgPool2d(kernel_size=kernel_size, stride=stride, padding=padding)
 
     def Flatten(self):
-        return LayerWithBypass(FlattenLayer)
+        return FlattenLayer()
 
     def GAP(self, kernel_size):
         gap = nn.Sequential()
@@ -133,23 +130,23 @@ class ConvBuilder(nn.Module):
         return gap
 
     def relu(self, in_features):
-        return F.relu(in_features[0]), in_features[1]
+        return F.relu(in_features)
 
     def max_pool2d(self, in_features, kernel_size, stride, padding):
-        return F.max_pool2d(in_features[0], kernel_size=kernel_size, stride=stride, padding=padding), in_features[1]
+        return F.max_pool2d(in_features, kernel_size=kernel_size, stride=stride, padding=padding)
 
     def avg_pool2d(self, in_features, kernel_size, stride, padding):
-        return F.avg_pool2d(in_features[0], kernel_size=kernel_size, stride=stride, padding=padding), in_features[1]
+        return F.avg_pool2d(in_features, kernel_size=kernel_size, stride=stride, padding=padding)
 
     def flatten(self, in_features):
-        result = in_features[0].view(in_features[0].size(0), -1), in_features[1]
+        result = in_features.view(in_features.size(0), -1)
         return result
 
     def add(self, a, b):
-        return a[0] + b[0], a[1] + b[1]
+        return a + b
 
     def GroupNorm(self, num_features, affine=True):
-        return LayerWithBypass(nn.GroupNorm, num_groups=8, num_channels=num_features, affine=affine)
+        return nn.GroupNorm(num_groups=8, num_channels=num_features, affine=affine)
 
     def Conv2dGroupNorm(self, in_channels, out_channels, kernel_size, stride=1, padding=0,
                         dilation=1, groups=1, padding_mode='zeros', use_original_conv=True):
@@ -164,7 +161,7 @@ class ConvBuilder(nn.Module):
         return se
 
     def OriginConv2dBN(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, padding_mode='zeros'):
-        conv_layer = LayerWithBypass(nn.Conv2d, in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+        conv_layer = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
                          stride=stride, padding=padding, dilation=dilation, groups=groups,
                                  bias=False, padding_mode=padding_mode)
         bn_layer = self.BatchNorm2d(num_features=out_channels)

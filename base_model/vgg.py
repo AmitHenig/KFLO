@@ -41,9 +41,9 @@ class VCNet(nn.Module):
 
     def __init__(self, num_classes, builder:ConvBuilder, deps):
         super(VCNet, self).__init__()
-        self.bd = builder
         if deps is None:
             deps = VGG_ORIGIN_DEPS
+        self.bd = builder
         self.stem = _create_vgg_stem(builder=builder, deps=deps)
         self.flatten = builder.Flatten()
         self.linear1 = builder.IntermediateLinear(in_features=deps[12], out_features=512)
@@ -51,12 +51,12 @@ class VCNet(nn.Module):
         self.linear2 = builder.Linear(in_features=512, out_features=num_classes)
 
     def forward(self, x):
-        out = self.stem((x, 0))
+        out = self.stem(x)
         out = self.flatten(out)
         out = self.linear1(out)
         out = self.relu(out)
         out = self.linear2(out)
-        return out[0], self.bd.base_config.weight_decay * out[1]
+        return out
 
 
 def create_vc(cfg, builder):

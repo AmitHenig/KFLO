@@ -16,6 +16,7 @@ import os
 from utils.checkpoint import get_last_checkpoint
 from utils.misc import init_as_tensorflow
 from ndp_test import val_during_train
+from kflo.kflo_block import get_kflo_l2
 
 TRAIN_SPEED_START = 0.1
 TRAIN_SPEED_END = 0.2
@@ -26,8 +27,8 @@ TEST_BATCH_SIZE = 100
 
 def train_one_step(net, data, label, optimizer, criterion,
                    if_accum_grad = False, gradient_mask_tensor = None, lasso_keyword_to_strength=None):
-    pred, method_wd_sum = net(data)
-    loss = criterion(pred, label) + method_wd_sum
+    pred = net(data)
+    loss = criterion(pred, label) + (get_kflo_l2(net) * net.bd.base_config.weight_decay)
 
     if lasso_keyword_to_strength is not None:
         assert len(lasso_keyword_to_strength) == 1 #TODO

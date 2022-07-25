@@ -12,6 +12,7 @@ from builder import ConvBuilder
 from utils.misc import log_important, extract_deps_from_weights_file
 from base_config import get_baseconfig_for_test
 from data.data_factory import num_val_examples
+from kflo.kflo_block import get_kflo_l2
 
 SPEED_TEST_SAMPLE_IGNORE_RATIO = 0.5
 
@@ -34,13 +35,13 @@ def run_eval(val_data, max_iters, net, criterion, discrip_str, dataset_name):
             data_time = time.time() - start_time
 
             net_time_start = time.time()
-            pred, method_wd_sum = net(data)
+            pred = net(data)
             net_time_end = time.time()
 
             if iter_idx >= SPEED_TEST_SAMPLE_IGNORE_RATIO * max_iters:
                 total_net_time += net_time_end - net_time_start
 
-            loss = criterion(pred, label) + method_wd_sum
+            loss = criterion(pred, label) + (get_kflo_l2(net) * net.bd.base_config.weight_decay)
             acc, acc5 = torch_accuracy(pred, label, (1, 5))
 
             top1.update(acc.item())

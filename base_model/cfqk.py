@@ -17,7 +17,7 @@ class CFQKBN(nn.Module):
         self.fc2 = self.bd.Linear(in_features=64, out_features=num_classes)
 
     def forward(self, x):
-        x = self.conv1((x, 0))   #   32
+        x = self.conv1(x)   #   32
         x = self.bd.max_pool2d(x, kernel_size=3, stride=2, padding=0)   #15
         x = self.conv2(x)
         x = self.bd.avg_pool2d(x, kernel_size=3, stride=2, padding=0)   #7
@@ -27,7 +27,7 @@ class CFQKBN(nn.Module):
         x = self.fc1(x)
         x = self.bd.relu(x)
         x = self.fc2(x)
-        return x[0], self.bd.base_config.weight_decay * x[1]
+        return x
 
 def create_CFQKBNC(cfg, builder):
     return CFQKBN(num_classes=10, builder=builder, deps=cfg.deps)

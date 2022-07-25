@@ -10,6 +10,7 @@ class KFLOBuilder(ConvBuilder):
         self.use_last_bn = False
 
     def switch_to_deploy(self):
+        # TODO: update to get final deployed net as in ACNet original code.
         self.deploy = True
 
     def Conv2d(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, padding_mode='zeros', use_original_conv=False):

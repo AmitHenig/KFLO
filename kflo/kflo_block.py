@@ -6,19 +6,10 @@ import torch.nn.functional as F
 """
 Implementation Note:
 When using our method, the weights of the convolution and fully connected layers are the reshaped result of 
-a 1D convolution, and are calculated in each forward run. The Weight decay value is applied on the calculated 
+a 1D convolution, and are calculated in each forward run. The Weight Decay value is applied on the calculated 
 weights (to avoid tuning a hyper parameter). For this purpose a PyTorch amateur hack has been implement in the 
-code where this regularization loss is also past forward to be added to the total loos in the training step.
-This effects every model code.
+code where the L2 sum of the generated weights (for the whole network) can be received with the function get_kflo_l2.
 """
-
-class LayerWithBypass(nn.Module):
-    def __init__(self, layer_func, **layer_kwargs):
-        super(LayerWithBypass, self).__init__()
-        self.the_layer = layer_func(**layer_kwargs)
-
-    def forward(self, input):
-        return self.the_layer(input[0]), input[1]
 
 
 class KFLO(nn.Module):
@@ -28,6 +19,7 @@ class KFLO(nn.Module):
         super(KFLO, self).__init__()
         assert padding_mode == 'zeros', 'Only supports zero padding.'
         self.deploy = deploy
+        self.l2_acb = 0
 
         w_ch = round(width_multiplier_r * out_channels)
         self.is_conv = kernel_size > 0
@@ -66,13 +58,14 @@ class KFLO(nn.Module):
     def switch_to_deploy(self):
         self.deploy = True
 
-    def forward(self, input):
+    def calc_method_weights(self):
         w1 = self.kflo_w1.weight
         w1 = w1.view(*self.w_cat_1d_shape)
         w2 = self.kflo_w2.weight
         w2 = w2.view(*self.w_combine_1d_shape)
         w1 = F.conv1d(w1, w2)
         w1 = w1.view(self.w_orig_shape)
+        self.l2_acb = torch.sum(w1 ** 2)
         if self.is_bias:
             b1 = self.kflo_w1.bias
             b1 = b1.view(*self.b_cat_1d_shape)
@@ -80,13 +73,24 @@ class KFLO(nn.Module):
             b1 = b1.view(self.b_orig_shape)
         else:
             b1 = None
+        return w1, b1
+
+    def forward(self, input):
+        w1, b1 = self.calc_method_weights()
         if self.is_conv:
-            result = F.conv2d(input[0], w1, bias=b1, stride=self.conv_stride, padding=self.conv_padding,
+            result = F.conv2d(input, w1, bias=b1, stride=self.conv_stride, padding=self.conv_padding,
                               dilation=self.conv_dilation, groups=self.conv_groups)
         else:
-            result = F.linear(input[0], w1, bias=b1)
-        w1_l2 = torch.sum(w1 ** 2)
-        return result, input[1] + w1_l2
+            result = F.linear(input, w1, bias=b1)
+        return result
+
+
+def get_kflo_l2(net):
+    method_wd_sum = 0
+    for mmm in net.modules():
+        if isinstance(mmm, KFLO):
+            method_wd_sum += mmm.l2_acb
+    return method_wd_sum
 
 
 if __name__ == '__main__':
